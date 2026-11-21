@@ -66,6 +66,15 @@ resource "aws_vpc_security_group_ingress_rule" "platform_mlflow_from_self" {
   referenced_security_group_id = aws_security_group.platform.id
 }
 
+resource "aws_vpc_security_group_ingress_rule" "platform_mlflow_from_notebook" {
+  security_group_id            = aws_security_group.platform.id
+  description                  = "MLflow tracking from SageMaker notebook"
+  ip_protocol                  = "tcp"
+  from_port                    = 5000
+  to_port                      = 5000
+  referenced_security_group_id = module.notebook.security_group_id
+}
+
 resource "aws_vpc_security_group_egress_rule" "platform_egress" {
   security_group_id = aws_security_group.platform.id
   description       = "Allow all outbound traffic"

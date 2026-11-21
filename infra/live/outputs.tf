@@ -41,3 +41,9 @@ output "redshift_database" {
   description = "Redshift database name"
   value       = module.redshift.database
 }
+
+# S2: SageMaker notebook
+output "notebook_name" {
+  description = "SageMaker notebook instance name"
+  value       = module.notebook.name
+}

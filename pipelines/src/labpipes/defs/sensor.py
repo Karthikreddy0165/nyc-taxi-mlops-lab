@@ -9,7 +9,7 @@ from ..resources import DataBucket
 
 ingest_month = dg.define_asset_job(
     "ingest_month",
-    selection=dg.AssetSelection.assets("trip_files", "raw_trips", "stg_trips", "zone_hour_stats"),
+    selection=dg.AssetSelection.assets("trip_files", "raw_trips", "stg_trips", "trip_features", "zone_hour_stats"),
     partitions_def=trip_months,
     description="Loads one month of trip data from S3, checks schema, and populates the mart.",
 )
