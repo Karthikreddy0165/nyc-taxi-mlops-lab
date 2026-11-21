@@ -53,6 +53,8 @@ if [ -f ./svc.sh ]; then
   ./svc.sh uninstall || true
 fi
 
+rm -f /opt/actions-runner/.runner /opt/actions-runner/.credentials /opt/actions-runner/.credentials_rsaparams /opt/actions-runner/.service 2>/dev/null || true
+
 # Clean and download runner package
 current_ver=\$(./bin/Runner.Listener --version 2>/dev/null || echo "")
 if [ "\$current_ver" != "${RUNNER_VERSION}" ]; then
@@ -61,8 +63,9 @@ if [ "\$current_ver" != "${RUNNER_VERSION}" ]; then
     "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-arm64-${RUNNER_VERSION}.tar.gz"
   tar xzf actions-runner-linux-arm64.tar.gz
   rm -f actions-runner-linux-arm64.tar.gz
-  chown -R runner:runner /opt/actions-runner
 fi
+
+chown -R runner:runner /opt/actions-runner
 
 sudo -u runner ./config.sh --url "https://github.com/$repo" \
   --token "$token" \

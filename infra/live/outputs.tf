@@ -29,3 +29,15 @@ output "artifact_bucket" {
   description = "Name of the artifact bucket in S3"
   value       = module.bucket.name
 }
+
+# S1: outputs listed in contracts/platform.yaml under terraform_outputs.
+
+output "redshift_cluster_id" {
+  description = "Redshift cluster identifier"
+  value       = module.redshift.cluster_id
+}
+
+output "redshift_database" {
+  description = "Redshift database name"
+  value       = module.redshift.database
+}
