@@ -54,18 +54,18 @@ def training_set(context: dg.AssetExecutionContext, redshift: RedshiftData, arti
     train_sql = (
         f"unload ('select pickup_zone_id, dropoff_zone_id, pickup_hour, pickup_dow, duration_min "
         f"from staging.trip_features where trip_month in (''2024-01'', ''2024-02'', ''2024-03'')') "
-        f"to 's3://{artifacts.bucket}/training/train' iam_role default format as parquet allowoverwrite"
+        f"to 's3://{artifacts.bucket}/training/train/' iam_role default format as parquet allowoverwrite"
     )
     holdout_sql = (
         f"unload ('select pickup_zone_id, dropoff_zone_id, pickup_hour, pickup_dow, duration_min "
         f"from staging.trip_features where trip_month in (''2024-04'')') "
-        f"to 's3://{artifacts.bucket}/training/holdout' iam_role default format as parquet allowoverwrite"
+        f"to 's3://{artifacts.bucket}/training/holdout/' iam_role default format as parquet allowoverwrite"
     )
     dist_sql = (
         f"unload ('select pickup_zone_id, dropoff_zone_id, median(trip_distance) as est_distance_miles "
         f"from staging.stg_trips where trip_month in (''2024-01'', ''2024-02'', ''2024-03'') "
         f"and duration_min > 0 and duration_min <= 180 and trip_distance > 0 group by 1, 2') "
-        f"to 's3://{artifacts.bucket}/training/distances' iam_role default format as parquet allowoverwrite"
+        f"to 's3://{artifacts.bucket}/training/distances/' iam_role default format as parquet allowoverwrite"
     )
     redshift.execute(train_sql, holdout_sql, dist_sql)
 
@@ -100,7 +100,7 @@ def trained_model(context: dg.AssetExecutionContext, artifacts: ArtifactBucket, 
     train[REQUIRED] = train[REQUIRED].astype("int64")
 
     contract = mlflow_contract()
-    model = LightGBMModel().fit(train, distances, num_rounds=200)
+    model = LightGBMModel().fit(train, distances, num_rounds=150)
 
     mlflow.set_tracking_uri(tracking.tracking_uri)
     mlflow.set_experiment(contract["experiment"])
@@ -220,9 +220,15 @@ def beats_champion(context: dg.AssetCheckExecutionContext) -> dg.AssetCheckResul
     event = context.instance.get_latest_materialization_event(dg.AssetKey("eval_report"))
     md = event.asset_materialization.metadata if event and event.asset_materialization else {}
 
-    mae = float(md["mae_min"].value) if "mae_min" in md else 999.0
-    champ_mae = float(md["champion_mae_min"].value) if "champion_mae_min" in md else 0.0
-    latency = float(md["p95_latency_ms"].value) if "p95_latency_ms" in md else 999.0
+    def _val(k: str, default: float) -> float:
+        if k not in md:
+            return default
+        entry = md[k]
+        return float(getattr(entry, "value", entry))
+
+    mae = _val("mae_min", 999.0)
+    champ_mae = _val("champion_mae_min", 0.0)
+    latency = _val("p95_latency_ms", 999.0)
 
     passed_mae = mae <= (champ_mae - PROMOTION_MARGIN_MIN)
     passed_latency = latency <= LATENCY_BUDGET_MS
