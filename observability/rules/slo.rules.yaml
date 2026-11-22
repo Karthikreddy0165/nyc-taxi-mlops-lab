@@ -2,4 +2,125 @@
 # Prometheus rule format: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
 # Metric names are contracts/metrics.yaml's. `make check` runs promtool on this file and on any
 # *.test.yaml next to it.
-groups: []
+groups:
+  - name: slo-recording
+    rules:
+      # 1. Availability SLI and Burn Rates (Target: 99.1%, Error Budget: 0.9% = 0.009)
+      - record: predict:availability:ratio_rate5m
+        expr: >-
+          sum(rate(lab_http_requests_total{route="/predict", code=~"2.."}[5m]))
+          /
+          (sum(rate(lab_http_requests_total{route="/predict"}[5m])) > 0)
+
+      - record: predict:availability:ratio_rate1h
+        expr: >-
+          sum(rate(lab_http_requests_total{route="/predict", code=~"2.."}[1h]))
+          /
+          (sum(rate(lab_http_requests_total{route="/predict"}[1h])) > 0)
+
+      - record: predict:availability:burn_rate5m
+        expr: >-
+          (
+            sum(rate(lab_http_requests_total{route="/predict", code=~"5.."}[5m]))
+            /
+            (sum(rate(lab_http_requests_total{route="/predict"}[5m])) > 0)
+          ) / 0.009
+
+      - record: predict:availability:burn_rate1h
+        expr: >-
+          (
+            sum(rate(lab_http_requests_total{route="/predict", code=~"5.."}[1h]))
+            /
+            (sum(rate(lab_http_requests_total{route="/predict"}[1h])) > 0)
+          ) / 0.009
+
+      # 2. Latency SLI and Burn Rates (Target: 95.0% < 250ms, Error Budget: 5.0% = 0.05)
+      - record: predict:latency:ratio_rate5m
+        expr: >-
+          sum(rate(lab_http_request_duration_seconds_bucket{route="/predict", le="0.25"}[5m]))
+          /
+          (sum(rate(lab_http_request_duration_seconds_count{route="/predict"}[5m])) > 0)
+
+      - record: predict:latency:ratio_rate1h
+        expr: >-
+          sum(rate(lab_http_request_duration_seconds_bucket{route="/predict", le="0.25"}[1h]))
+          /
+          (sum(rate(lab_http_request_duration_seconds_count{route="/predict"}[1h])) > 0)
+
+      - record: predict:latency:burn_rate5m
+        expr: >-
+          (
+            1 - (
+              sum(rate(lab_http_request_duration_seconds_bucket{route="/predict", le="0.25"}[5m]))
+              /
+              (sum(rate(lab_http_request_duration_seconds_count{route="/predict"}[5m])) > 0)
+            )
+          ) / 0.05
+
+      - record: predict:latency:burn_rate1h
+        expr: >-
+          (
+            1 - (
+              sum(rate(lab_http_request_duration_seconds_bucket{route="/predict", le="0.25"}[1h]))
+              /
+              (sum(rate(lab_http_request_duration_seconds_count{route="/predict"}[1h])) > 0)
+            )
+          ) / 0.05
+
+      # 3. Model Ratio SLI and Burn Rates (Target: 96.0%, Error Budget: 4.0% = 0.04)
+      - record: predict:model_ratio:ratio_rate5m
+        expr: >-
+          sum(rate(lab_predictions_total{source="model"}[5m]))
+          /
+          (sum(rate(lab_predictions_total[5m])) > 0)
+
+      - record: predict:model_ratio:ratio_rate1h
+        expr: >-
+          sum(rate(lab_predictions_total{source="model"}[1h]))
+          /
+          (sum(rate(lab_predictions_total[1h])) > 0)
+
+      - record: predict:model_ratio:burn_rate5m
+        expr: >-
+          (
+            sum(rate(lab_predictions_total{source="fallback"}[5m]))
+            /
+            (sum(rate(lab_predictions_total[5m])) > 0)
+          ) / 0.04
+
+      - record: predict:model_ratio:burn_rate1h
+        expr: >-
+          (
+            sum(rate(lab_predictions_total{source="fallback"}[1h]))
+            /
+            (sum(rate(lab_predictions_total[1h])) > 0)
+          ) / 0.04
+
+  - name: slo-alerts
+    rules:
+      - alert: PredictAvailabilityBurnRateHigh
+        expr: predict:availability:burn_rate1h > 14 and predict:availability:burn_rate5m > 14
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "/predict availability burn rate is dangerously high"
+          description: "High error rate on /predict is rapidly consuming the 99.1% availability error budget."
+
+      - alert: PredictLatencyBurnRateHigh
+        expr: predict:latency:burn_rate1h > 14 and predict:latency:burn_rate5m > 14
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "/predict latency burn rate is dangerously high"
+          description: "More than 5% of /predict requests exceed 250ms over the 1h and 5m observation windows."
+
+      - alert: ModelServingFallbackHigh
+        expr: predict:model_ratio:burn_rate1h > 14 and predict:model_ratio:burn_rate5m > 14
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: "Predictions are overwhelmingly using static fallback instead of ML model"
+          description: "Fallback rate exceeds the 4% error budget over the 1h and 5m observation windows."

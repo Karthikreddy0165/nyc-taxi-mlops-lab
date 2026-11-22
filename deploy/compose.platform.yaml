@@ -81,6 +81,29 @@ services:
       retries: 12
       start_period: 30s
 
+  # Start Lab boots this host, and Docker starts this container with it: it starts RDS and resumes
+  # Redshift as LabRole if they're stopped, then idles until the next boot (decision 012). Dagster
+  # and MLflow restart on their own (at most a minute apart) until RDS answers. It never stops
+  # anything: stopping at night stays a deliberate step.
+  wake:
+    image: public.ecr.aws/aws-cli/aws-cli:2.37.7
+    restart: unless-stopped
+    environment:
+      AWS_REGION: us-east-1
+      REDSHIFT_CLUSTER_ID: ${REDSHIFT_CLUSTER_ID:-lab}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # Right after boot the instance profile's credentials can take a moment: retry for 5 minutes.
+        for _ in $$(seq 30); do
+          rds=$$(aws rds describe-db-instances --db-instance-identifier lab --query 'DBInstances[0].DBInstanceStatus' --output text) &&
+            rs=$$(aws redshift describe-clusters --cluster-identifier "$$REDSHIFT_CLUSTER_ID" --query 'Clusters[0].ClusterStatus' --output text) && break
+          sleep 10
+        done
+        echo "$$(date -u +%FT%TZ) at boot: rds $$rds, redshift $$rs"
+        [ "$$rds" = stopped ] && aws rds start-db-instance --db-instance-identifier lab --query DBInstance.DBInstanceStatus --output text
+        [ "$$rs" = paused ] && aws redshift resume-cluster --cluster-identifier "$$REDSHIFT_CLUSTER_ID" --query Cluster.ClusterStatus --output text
+        exec sleep infinity
 
 volumes:
   dagster-storage:

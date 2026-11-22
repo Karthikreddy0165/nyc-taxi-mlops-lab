@@ -84,3 +84,10 @@ module "secret" {
   name        = "lab/wiki"
   description = "Wiki credentials container for support assistant RAG"
 }
+
+# Secrets Manager Secret Container (lab/grafana for Alloy metrics and rules in S5)
+module "secret_grafana" {
+  source      = "../modules/secret"
+  name        = "lab/grafana"
+  description = "Grafana Cloud credentials for Alloy metrics and alerts"
+}

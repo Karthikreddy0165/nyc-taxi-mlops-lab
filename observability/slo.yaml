@@ -3,7 +3,19 @@
 # number, and the alert that tells you it's being missed.
 slos:
   - name: predict-availability
-    sli:
-    objective:
-    why:
-    alert:
+    sli: "rate(lab_http_requests_total{route=\"/predict\",code=~\"2..\"}[1h]) / rate(lab_http_requests_total{route=\"/predict\"}[1h])"
+    objective: 0.991
+    why: "Internal target higher than contractual 99.0% SLA provides buffer before client breach, with 0.9% error budget allowing zero-downtime blue-green deployments."
+    alert: PredictAvailabilityBurnRateHigh
+
+  - name: predict-latency
+    sli: "rate(lab_http_request_duration_seconds_bucket{route=\"/predict\",le=\"0.25\"}[1h]) / rate(lab_http_request_duration_seconds_count{route=\"/predict\"}[1h])"
+    objective: 0.950
+    why: "Fast rider quote experience (<250ms) while tolerating occasional ASGI serialization and proxy tail latency spikes on t4g.large instances."
+    alert: PredictLatencyBurnRateHigh
+
+  - name: model-serving-ratio
+    sli: "rate(lab_predictions_total{source=\"model\"}[1h]) / rate(lab_predictions_total[1h])"
+    objective: 0.960
+    why: "Guarantees dynamic ML predictions over static 12.25 min median quotes, tolerating transient hot-reloads during model promotion."
+    alert: ModelServingFallbackHigh

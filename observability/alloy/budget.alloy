@@ -12,7 +12,26 @@ declare "host" {
 	prometheus.relabel "rules" {
 		forward_to = argument.forward_to.value
 
-		// Your rules for the host's series: CPU? memory? disk? which network devices?
+		// Host metrics needed by dashboards, SLOs, and basic system health.
+		rule {
+			source_labels = ["__name__"]
+			regex         = "node_(cpu_seconds_total|memory_MemTotal_bytes|memory_MemAvailable_bytes|memory_MemFree_bytes|memory_Buffers_bytes|memory_Cached_bytes|filesystem_avail_bytes|filesystem_size_bytes|network_receive_bytes_total|network_transmit_bytes_total|load1|load5|load15|boot_time_seconds)"
+			action        = "keep"
+		}
+
+		// Drop virtual and bridge interfaces.
+		rule {
+			source_labels = ["device"]
+			regex         = "veth.*|br-.*|docker.*"
+			action        = "drop"
+		}
+
+		// Drop temporary and overlay filesystems.
+		rule {
+			source_labels = ["fstype"]
+			regex         = "tmpfs|overlay|squashfs"
+			action        = "drop"
+		}
 	}
 
 	export "receiver" {
@@ -26,7 +45,25 @@ declare "containers" {
 	prometheus.relabel "rules" {
 		forward_to = argument.forward_to.value
 
-		// Your rules for the containers' series: which metrics, and which labels change on every deploy?
+		// Keep only core container resource metrics.
+		rule {
+			source_labels = ["__name__"]
+			regex         = "container_(memory_working_set_bytes|cpu_usage_seconds_total|network_receive_bytes_total|network_transmit_bytes_total|start_time_seconds)"
+			action        = "keep"
+		}
+
+		// Drop unnamed cgroups (system slices, root cgroup).
+		rule {
+			source_labels = ["name"]
+			regex         = ".+"
+			action        = "keep"
+		}
+
+		// Drop volatile labels (id hash and compose metadata labels) that change on every deploy.
+		rule {
+			regex  = "(id|container_label_.*)"
+			action = "labeldrop"
+		}
 	}
 
 	export "receiver" {
@@ -40,7 +77,12 @@ declare "services" {
 	prometheus.relabel "rules" {
 		forward_to = argument.forward_to.value
 
-		// Your rules for the services' series (contracts/metrics.yaml, Traefik, runtime metrics).
+		// Retain all lab service metrics and Traefik service metrics (contracts/metrics.yaml).
+		rule {
+			source_labels = ["__name__"]
+			regex         = "(lab_.*|traefik_service_.*)"
+			action        = "keep"
+		}
 	}
 
 	export "receiver" {
