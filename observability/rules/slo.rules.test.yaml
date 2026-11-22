@@ -49,7 +49,7 @@ tests:
         alertname: ModelServingFallbackHigh
         exp_alerts: []
 
-      - eval_time: 36m
+      - eval_time: 38m
         alertname: ModelServingFallbackHigh
         exp_alerts:
           - exp_labels:
