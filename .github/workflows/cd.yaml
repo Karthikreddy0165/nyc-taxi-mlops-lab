@@ -42,6 +42,7 @@ jobs:
       SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
       TAG: ${{ inputs.tag }}
       ACTION: ${{ inputs.action || 'deploy' }}
+      LLM_HOST: ${{ vars.LLM_HOST }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:

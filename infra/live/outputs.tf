@@ -54,3 +54,10 @@ output "platform_private_ip" {
   value       = module.host_platform.private_ip
 }
 
+# S6: LLM host private IP for app and platform to reach chat and embeddings
+output "llm_private_ip" {
+  description = "Private IP of the LLM host"
+  value       = module.host_llm.private_ip
+}
+
+
