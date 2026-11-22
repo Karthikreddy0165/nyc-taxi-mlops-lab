@@ -99,7 +99,7 @@ groups:
   - name: slo-alerts
     rules:
       - alert: PredictAvailabilityBurnRateHigh
-        expr: predict:availability:burn_rate1h > 14 and predict:availability:burn_rate5m > 14
+        expr: predict:availability:burn_rate1h > 2 and predict:availability:burn_rate5m > 2
         for: 2m
         labels:
           severity: page
@@ -108,7 +108,7 @@ groups:
           description: "High error rate on /predict is rapidly consuming the 99.1% availability error budget."
 
       - alert: PredictLatencyBurnRateHigh
-        expr: predict:latency:burn_rate1h > 14 and predict:latency:burn_rate5m > 14
+        expr: predict:latency:burn_rate1h > 2 and predict:latency:burn_rate5m > 2
         for: 2m
         labels:
           severity: page
@@ -117,7 +117,7 @@ groups:
           description: "More than 5% of /predict requests exceed 250ms over the 1h and 5m observation windows."
 
       - alert: ModelServingFallbackHigh
-        expr: predict:model_ratio:burn_rate1h > 14 and predict:model_ratio:burn_rate5m > 14
+        expr: predict:model_ratio:burn_rate1h > 2 and predict:model_ratio:burn_rate5m > 2
         for: 2m
         labels:
           severity: page

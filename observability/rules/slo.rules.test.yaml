@@ -8,10 +8,11 @@ tests:
   - interval: 1m
     input_series:
       - series: 'lab_http_requests_total{route="/predict", code="200"}'
-        values: '0+100x60'
+        # 100 req/min for 30 minutes, then 0 (outage)
+        values: '0+100x30 3000+0x30'
       - series: 'lab_http_requests_total{route="/predict", code="500"}'
-        # Normal until minute 30, then 50 errors/min (33% failure rate, burn rate ~37x > 14x)
-        values: '0+0x30 0+50x30'
+        # Normal until minute 30, then 100 errors/min
+        values: '0+0x30 0+100x30'
 
     alert_rule_test:
       # Normal traffic: no alert
@@ -38,9 +39,9 @@ tests:
   - interval: 1m
     input_series:
       - series: 'lab_predictions_total{source="model"}'
-        values: '0+100x30 0+0x30'
+        values: '0+100x30 3000+0x30'
       - series: 'lab_predictions_total{source="fallback"}'
-        # Serving crashes at minute 30: 100% fallback (burn rate 25x > 14x)
+        # Serving crashes at minute 30: 100% fallback
         values: '0+0x30 0+100x30'
 
     alert_rule_test:
