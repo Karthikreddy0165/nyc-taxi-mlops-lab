@@ -91,3 +91,10 @@ module "secret_grafana" {
   name        = "lab/grafana"
   description = "Grafana Cloud credentials for Alloy metrics and alerts"
 }
+
+# Secrets Manager Secret Container (lab/langfuse for assistant tracing in S6)
+module "secret_langfuse" {
+  source      = "../modules/secret"
+  name        = "lab/langfuse"
+  description = "Langfuse API keys container for assistant tracing"
+}
