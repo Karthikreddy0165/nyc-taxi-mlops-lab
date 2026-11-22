@@ -1,5 +1,4 @@
-# CI/CD for the NYC Taxi App (S0).
-# Pushes to main: run make check, build arm64 image to GHCR, and deploy on self-hosted runner.
+# CI: run static checks and unit tests; on pushes to main, build the arm64 app image to GHCR.
 name: ci
 
 on:
@@ -59,35 +58,3 @@ jobs:
           labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           cache-from: type=gha,scope=app
           cache-to: type=gha,scope=app,mode=max
-
-  deploy:
-    needs: image
-    runs-on: [self-hosted, lab-app]
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: docker/login-action@v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Deploy app stack via Compose
-        run: |
-          export IMAGE_PREFIX="${{ needs.image.outputs.prefix }}"
-          export IMAGE_TAG="${{ needs.image.outputs.tag }}"
-          docker compose -f deploy/compose.app.yaml pull
-          docker compose -f deploy/compose.app.yaml up -d --wait
-      - name: Smoke test /version endpoint
-        run: |
-          for _ in $(seq 1 15); do
-            response=$(curl -fsS http://localhost/version || true)
-            if [[ -n "$response" ]]; then
-              echo "Smoke test passed: $response"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Smoke test failed to reach /version" >&2
-          exit 1

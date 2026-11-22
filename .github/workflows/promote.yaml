@@ -1,0 +1,96 @@
+name: promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Model version to promote (default: current challenger)"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: [self-hosted, lab-app]
+    environment: production
+    env:
+      MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+      INPUT_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Promote model to champion
+        run: |
+          docker exec -i -e INPUT_VERSION="${INPUT_VERSION}" lab-serving-serving-champion-1 python - <<'EOF'
+          import os, sys
+          from mlflow import MlflowClient
+          from mlflow.exceptions import MlflowException
+
+          uri = os.environ.get("MLFLOW_TRACKING_URI")
+          if not uri:
+              sys.exit("MLFLOW_TRACKING_URI not set")
+
+          client = MlflowClient(uri)
+          model_name = "trip-duration"
+
+          # 1. Determine target version to promote
+          target_version = os.environ.get("INPUT_VERSION", "").strip()
+          if not target_version:
+              try:
+                  challenger = client.get_model_version_by_alias(model_name, "challenger")
+                  target_version = str(challenger.version)
+                  print(f"No version specified; promoting current challenger: version {target_version}")
+              except MlflowException as e:
+                  sys.exit(f"Failed to find challenger alias: {e}")
+          else:
+              print(f"Promoting specified version: {target_version}")
+
+          # 2. Check that the pipeline evaluated it
+          mv = client.get_model_version(model_name, target_version)
+          tags = mv.tags or {}
+          print(f"Model version {target_version} tags: {tags}")
+
+          required_tags = ["training_window", "holdout_month", "mae_min", "p95_latency_ms"]
+          missing = [t for t in required_tags if t not in tags]
+          if missing:
+              sys.exit(f"Model version {target_version} was not evaluated by pipeline; missing tags: {missing}")
+
+          # 3. Record outgoing champion
+          try:
+              current_champ = client.get_model_version_by_alias(model_name, "champion")
+              outgoing_ver = str(current_champ.version)
+              print(f"Outgoing champion was: version {outgoing_ver}")
+          except MlflowException:
+              outgoing_ver = "none"
+              print("No outgoing champion (first promotion)")
+
+          # 4. Set champion alias
+          client.set_registered_model_alias(model_name, "champion", target_version)
+          print(f"Successfully assigned alias 'champion' to version {target_version} in MLflow!")
+          EOF
+
+      - name: Reload serving
+        run: |
+          echo "Reloading serving-champion container..."
+          deploy/web.sh reload champion
+
+      - name: Verify /predict
+        run: |
+          echo "Verifying /predict through Traefik..."
+          for _ in $(seq 1 15); do
+            resp=$(curl -fsS http://localhost/predict \
+              -H 'Content-Type: application/json' \
+              -d '{"pickup_zone_id": 132, "dropoff_zone_id": 230, "pickup_datetime": "2024-03-08T17:05:00"}' || true)
+            echo "Response: $resp"
+            if echo "$resp" | jq -e '.model.alias == "champion"' >/dev/null; then
+              echo "Promotion verified: app is quoting from champion!"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Failed to verify champion model on /predict" >&2
+          exit 1
