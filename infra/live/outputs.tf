@@ -47,3 +47,10 @@ output "notebook_name" {
   description = "SageMaker notebook instance name"
   value       = module.notebook.name
 }
+
+# S3: platform private IP for serving to reach MLflow
+output "platform_private_ip" {
+  description = "Private IP of the platform host"
+  value       = module.host_platform.private_ip
+}
+
